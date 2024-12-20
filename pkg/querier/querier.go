@@ -25,7 +25,6 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/logql"
 	"github.com/grafana/loki/pkg/logql/stats"
-	"github.com/grafana/loki/pkg/storage"
 	listutil "github.com/grafana/loki/pkg/util"
 	"github.com/grafana/loki/pkg/util/validation"
 )
@@ -58,18 +57,25 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.IntVar(&cfg.MaxConcurrent, "querier.max-concurrent", 20, "The maximum number of concurrent queries.")
 }
 
+// Store is the Loki chunk store to retrieve and save chunks.
+type Store interface {
+	SelectSamples(ctx context.Context, req logql.SelectSampleParams) (iter.SampleIterator, error)
+	SelectLogs(ctx context.Context, req logql.SelectLogParams) (iter.EntryIterator, error)
+	GetSeries(ctx context.Context, req logql.SelectLogParams) ([]logproto.SeriesIdentifier, error)
+}
+
 // Querier handlers queries.
 type Querier struct {
 	cfg    Config
 	ring   ring.ReadRing
 	pool   *ring_client.Pool
-	store  storage.Store
+	store  Store
 	engine *logql.Engine
 	limits *validation.Overrides
 }
 
 // New makes a new Querier.
-func New(cfg Config, clientCfg client.Config, ring ring.ReadRing, store storage.Store, limits *validation.Overrides) (*Querier, error) {
+func New(cfg Config, clientCfg client.Config, ring ring.ReadRing, store Store, limits *validation.Overrides) (*Querier, error) {
 	factory := func(addr string) (ring_client.PoolClient, error) {
 		return client.New(clientCfg, addr)
 	}
@@ -79,7 +85,7 @@ func New(cfg Config, clientCfg client.Config, ring ring.ReadRing, store storage.
 
 // newQuerier creates a new Querier and allows to pass a custom ingester client factory
 // used for testing purposes
-func newQuerier(cfg Config, clientCfg client.Config, clientFactory ring_client.PoolFactory, ring ring.ReadRing, store storage.Store, limits *validation.Overrides) (*Querier, error) {
+func newQuerier(cfg Config, clientCfg client.Config, clientFactory ring_client.PoolFactory, ring ring.ReadRing, store Store, limits *validation.Overrides) (*Querier, error) {
 	querier := Querier{
 		cfg:    cfg,
 		ring:   ring,
@@ -455,11 +461,9 @@ func (q *Querier) Series(ctx context.Context, req *logproto.SeriesRequest) (*log
 	defer cancel()
 
 	return q.awaitSeries(ctx, req)
-
 }
 
 func (q *Querier) awaitSeries(ctx context.Context, req *logproto.SeriesRequest) (*logproto.SeriesResponse, error) {
-
 	// buffer the channels to the # of calls they're expecting su
 	series := make(chan [][]logproto.SeriesIdentifier, 2)
 	errs := make(chan error, 2)
@@ -529,7 +533,6 @@ func (q *Querier) seriesForMatchers(
 	from, through time.Time,
 	groups []string,
 ) ([]logproto.SeriesIdentifier, error) {
-
 	var results []logproto.SeriesIdentifier
 	// If no matchers were specified for the series query,
 	// we send a query with an empty matcher which will match every series.
