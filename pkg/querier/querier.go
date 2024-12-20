@@ -77,6 +77,14 @@ func New(cfg Config, clientCfg client.Config, ring ring.ReadRing, store storage.
 	return newQuerier(cfg, clientCfg, factory, ring, store, limits)
 }
 
+func (q *Querier) API() *QuerierAPI {
+	return &QuerierAPI{
+		cfg:    q.cfg,
+		engine: q.engine,
+		limits: q.limits,
+	}
+}
+
 // newQuerier creates a new Querier and allows to pass a custom ingester client factory
 // used for testing purposes
 func newQuerier(cfg Config, clientCfg client.Config, clientFactory ring_client.PoolFactory, ring ring.ReadRing, store storage.Store, limits *validation.Overrides) (*Querier, error) {
