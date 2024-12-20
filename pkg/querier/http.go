@@ -35,6 +35,15 @@ type QuerierAPI struct {
 	labels LabelQueryable
 }
 
+func NewQuerierAPI(cfg Config, engine *logql.Engine, labels LabelQueryable, limits *validation.Overrides) *QuerierAPI {
+	return &QuerierAPI{
+		cfg:    cfg,
+		engine: engine,
+		limits: limits,
+		labels: labels,
+	}
+}
+
 type LabelQueryable interface {
 	// LabelQuerier returns a new Querier on the storage.
 	LabelQuerier(mint, maxt int64) (LabelQuerier, error)
@@ -68,6 +77,15 @@ const (
 	MatchRegexp
 	MatchNotRegexp
 )
+
+func (q *Querier) API() *QuerierAPI {
+	panic("this method should not be used yet")
+	// return &QuerierAPI{
+	// 	cfg:    q.cfg,
+	// 	engine: q.engine,
+	// 	limits: q.limits,
+	// }
+}
 
 func (q *Querier) RangeQueryHandler(w http.ResponseWriter, r *http.Request) {
 	q.API().RangeQueryHandler(w, r)
